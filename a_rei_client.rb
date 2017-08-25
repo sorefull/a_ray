@@ -3,8 +3,6 @@ require "socket"
 require 'encrypto_signo'
 
 class AReiClient
-  CODE = 'secret'
-
   def initialize(server)
     @server = server
     @request = nil
@@ -23,28 +21,40 @@ class AReiClient
   def listen
     @response = Thread.new do
       loop {
-        msg = decrypt(@server.gets.chomp.gsub(CODE, "\n"))
+        msg = decrypt get_key(@server.gets.chomp)
         puts "#{msg}"
       }
     end
   end
 
   def send
-    @server_public_key = @server.gets.chomp.gsub(CODE, "\n")
-    @server.puts encrypt(@public_key).gsub("\n", CODE)
+    @server_public_key = get_key(@server.gets.chomp)
+    @server.puts encrypt(@public_key).gsub("\n", '')
 
     puts "Enter the username:"
     @request = Thread.new do
       loop {
         msg = $stdin.gets.chomp
         next if msg == ''
-        @server.puts encrypt(msg).gsub("\n", CODE)
+        @server.puts encrypt(msg).gsub("\n", '')
         exit! if msg == 'exit!'
       }
     end
   end
 
   private
+
+  def get_key(string)
+    string.gsub!('-----BEGIN PUBLIC KEY-----', "-----BEGIN PUBLIC KEY-----\n")
+    string.gsub!('-----END PUBLIC KEY-----', "\n-----END PUBLIC KEY-----")
+    wrap_long_string(string, 66)
+  end
+
+  def wrap_long_string(text,max_width = 20)
+    (text.length < max_width) ?
+      text :
+      text.scan(/.{1,#{max_width}}/).join("\n")
+  end
 
   def encrypt(string)
     EncryptoSigno.encrypt(@server_public_key, string)

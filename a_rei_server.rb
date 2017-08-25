@@ -7,8 +7,6 @@ class TCPSocket
 end
 
 class AReiServer
-  CODE = 'secret'
-
   def initialize(port, ip)
     @server = TCPServer.open(ip, port)
     @connections = {}
@@ -25,19 +23,19 @@ class AReiServer
   def run
     loop {
       Thread.start(@server.accept) do |client|
-        client.puts @public_key.gsub("\n", CODE)
-        client.key = decrypt(client.gets.chomp.gsub(CODE, "\n"))
+        client.puts @public_key.gsub("\n", '')
+        client.key = decrypt get_key(client.gets.chomp)
 
-        nick_name = decrypt(client.gets.chomp.gsub(CODE, "\n")).to_sym
+        nick_name = decrypt(get_key(client.gets.chomp)).to_sym
         @connections[:clients].each do |other_name, other_client|
           if nick_name == other_name || client == other_client
-            client.puts encrypt('This username already exist', client.key).gsub("\n", CODE)
+            client.puts encrypt('This username already exist', client.key).gsub("\n", '')
             Thread.kill self
           end
         end
         puts "Online: #{nick_name} - #{client}"
         @connections[:clients][nick_name] = client
-        client.puts encrypt("Connection established, Thank you for joining! Happy chatting", client.key).gsub("\n", CODE)
+        client.puts encrypt("Connection established, Thank you for joining! Happy chatting", client.key).gsub("\n", '')
         listen_user_messages(nick_name, client)
       end
     }.join
@@ -45,7 +43,7 @@ class AReiServer
 
   def listen_user_messages(username, client)
     loop {
-      msg = decrypt(client.gets.chomp.gsub(CODE, "\n"))
+      msg = decrypt get_key(client.gets.chomp)
       if msg == 'exit!'
         @connections[:clients].delete(username)
         puts "Offline: #{username} - #{client}"
@@ -53,13 +51,25 @@ class AReiServer
       end
       @connections[:clients].each do |other_name, other_client|
         unless other_name == username
-          other_client.puts encrypt("#{username.to_s}: #{msg}", other_client.key).gsub("\n", CODE)
+          other_client.puts encrypt("#{username.to_s}: #{msg}", other_client.key).gsub("\n", '')
         end
       end
     }
   end
 
   private
+
+  def get_key(string)
+    string.gsub!('-----BEGIN PUBLIC KEY-----', "-----BEGIN PUBLIC KEY-----\n")
+    string.gsub!('-----END PUBLIC KEY-----', "\n-----END PUBLIC KEY-----")
+    wrap_long_string(string, 66)
+  end
+
+  def wrap_long_string(text,max_width = 20)
+    (text.length < max_width) ?
+      text :
+      text.scan(/.{1,#{max_width}}/).join("\n")
+  end
 
   def encrypt(string, client_public_key)
     EncryptoSigno.encrypt(client_public_key, string)
