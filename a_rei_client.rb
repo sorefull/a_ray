@@ -40,5 +40,5 @@ class AReiClient < ARei
   end
 end
 
-server = TCPSocket.open("localhost", 3000)
+server = TCPSocket.open('localhost', 3000)
 AReiClient.new(server)

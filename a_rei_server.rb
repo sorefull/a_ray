@@ -5,8 +5,8 @@ class AReiServer < ARei
   def initialize(port, ip)
     @server = TCPServer.open(ip, port)
     @connections = {}
-    @connections[:server] = @server
     @connections[:clients] = {}
+    @users = [:sorefull, :rei]
     set_keys
     run
   end
@@ -20,6 +20,8 @@ class AReiServer < ARei
         client.key = decrypt(parse_key(client.gets.chomp), @private_key)
 
         nick_name = decrypt(client.gets.chomp, @private_key).to_sym
+        Thread.kill self unless @users.include? nick_name
+
         @connections[:clients].each do |other_name, other_client|
           if nick_name == other_name || client == other_client
             client.puts encrypt('This username already exist', client.key).gsub("\n", '')
@@ -28,7 +30,7 @@ class AReiServer < ARei
         end
         puts "Online: #{nick_name} - #{client}"
         @connections[:clients][nick_name] = client
-        client.puts encrypt("Connection established, Thank you for joining! Happy chatting", client.key).gsub("\n", '')
+        client.puts encrypt("Secure connection established, happy chatting", client.key).gsub("\n", '')
         listen_user_messages(nick_name, client)
       end
     }.join
@@ -37,11 +39,16 @@ class AReiServer < ARei
   def listen_user_messages(username, client)
     loop {
       msg = decrypt(client.gets.chomp, @private_key)
-      if msg == 'exit!'
+
+      case msg
+      when /exit!/
         @connections[:clients].delete(username)
         puts "Offline: #{username} - #{client}"
         next
+      when /create_user: ([a-z]{5,})!/
+        binding.pry
       end
+
       @connections[:clients].each do |other_name, other_client|
         unless other_name == username
           other_client.puts encrypt("#{username.to_s}: #{msg}", other_client.key).gsub("\n", '')
